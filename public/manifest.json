@@ -2,7 +2,7 @@
   "name": "Phone Brain",
   "short_name": "PhoneBrain",
   "description": "Futuristic Cyberpunk Dashboard - Your Phone's Brain",
-  "start_url": "/index.html",
+  "start_url": "./"
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#00f0ff",
