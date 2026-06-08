@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <title>Phone Brain</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Animated Background -->
+  <div id="cyber-bg"></div>
+  <div class="grid-overlay"></div>
+  <div class="scanline"></div>
+
+  <!-- Main Container -->
+  <div class="container">
+
+    <!-- Header -->
+    <header class="header">
+      <h1>Phone Brain</h1>
+      <div class="subtitle">Neural Interface v2.0</div>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span><span class="status-dot"></span> Online</span>
+      <span id="status-mode">Mode: Normal</span>
+    </div>
+
+    <!-- Clock Card -->
+    <div class="glass-card">
+      <div class="card-label">System Clock</div>
+      <div class="clock-display">
+        <div class="clock-time" id="clock-time">00:00:00</div>
+        <div class="clock-date" id="clock-date">---</div>
+        <div class="clock-seconds-bar">
+          <div class="clock-seconds-fill" id="seconds-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="glass-card">
+      <div class="card-label">System Metrics</div>
+      <div class="stats-grid">
+        <!-- Battery -->
+        <div class="stat-box">
+          <div class="stat-icon">🔋</div>
+          <div class="stat-value battery-val" id="battery-val">--%</div>
+          <div class="stat-label">Battery</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill battery-fill" id="battery-fill"></div>
+          </div>
+        </div>
+        <!-- CPU -->
+        <div class="stat-box">
+          <div class="stat-icon">⚙</div>
+          <div class="stat-value cpu-val" id="cpu-val">--%</div>
+          <div class="stat-label">CPU Load</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill cpu-fill" id="cpu-fill"></div>
+          </div>
+        </div>
+        <!-- RAM -->
+        <div class="stat-box">
+          <div class="stat-icon">💾</div>
+          <div class="stat-value ram-val" id="ram-val">--%</div>
+          <div class="stat-label">RAM Usage</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill ram-fill" id="ram-fill"></div>
+          </div>
+        </div>
+        <!-- Mode -->
+        <div class="stat-box">
+          <div class="stat-icon">🌐</div>
+          <div class="stat-value" id="mode-val" style="font-size:14px;">Normal</div>
+          <div class="stat-label">Active Mode</div>
+          <div id="mode-status" class="mode-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode Buttons -->
+    <div class="glass-card">
+      <div class="card-label">Mode Control</div>
+      <div class="mode-grid">
+        <button class="mode-btn gaming" id="gaming-btn">
+          <span class="mode-icon">🎮</span>
+          Gaming
+        </button>
+        <button class="mode-btn study" id="study-btn">
+          <span class="mode-icon">📚</span>
+          Study
+        </button>
+      </div>
+    </div>
+
+    <!-- Voice Command -->
+    <div class="glass-card">
+      <div class="card-label">Voice Interface</div>
+      <div class="voice-btn-container">
+        <button class="voice-btn" id="voice-btn">
+          <div class="voice-waves">
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+            <div class="voice-wave"></div>
+          </div>
+          Voice Command
+        </button>
+      </div>
+    </div>
+
+    <!-- System Log -->
+    <div class="glass-card">
+      <div class="card-label">System Log</div>
+      <div class="sys-log" id="sys-log"></div>
+    </div>
+
+  </div>
+
+  <!-- AI Assistant Orb -->
+  <div class="ai-orb-container">
+    <div class="ai-orb">
+      <div class="ai-orb-inner"></div>
+    </div>
+  </div>
+
+  <!-- AI Chat Panel -->
+  <div class="ai-chat" id="ai-chat"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
