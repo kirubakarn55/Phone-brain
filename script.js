@@ -138,6 +138,8 @@ function initParticles() {
     container.className = 'particles';
     document.body.appendChild(container);
 
+    const count = 40;
+
     for (let i = 0; i < count; i++) {
         const p = document.createElement('div');
         p.className = 'particle';
