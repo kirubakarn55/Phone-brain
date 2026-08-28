@@ -377,3 +377,259 @@ function initPWA() {
     });
   }
 }
+// ============================================================
+// PHONE BRAIN - PHASE 2A
+// MEMORY + NOTES + CALCULATOR
+// ============================================================
+
+// ---------- MEMORY ----------
+
+const PB_MEMORY_KEY = 'phoneBrainMemory';
+
+function getMemory() {
+  try {
+    return JSON.parse(localStorage.getItem(PB_MEMORY_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveMemory(memory) {
+  localStorage.setItem(PB_MEMORY_KEY, JSON.stringify(memory));
+}
+
+function rememberInfo(text) {
+  const memory = getMemory();
+
+  const cleanText = text
+    .replace(/^remember( that)?/i, '')
+    .trim();
+
+  if (!cleanText) {
+    return 'Tell me what you want me to remember.';
+  }
+
+  const key = 'memory_' + Date.now();
+
+  memory[key] = {
+    text: cleanText,
+    created: new Date().toLocaleString()
+  };
+
+  saveMemory(memory);
+
+  return `I will remember: ${cleanText}`;
+}
+
+function showMemory() {
+  const memory = getMemory();
+  const items = Object.values(memory);
+
+  if (items.length === 0) {
+    return 'My memory is empty.';
+  }
+
+  return 'I remember:\n' +
+    items.map((item, index) =>
+      `${index + 1}. ${item.text}`
+    ).join('\n');
+}
+
+function clearMemory() {
+  localStorage.removeItem(PB_MEMORY_KEY);
+  return 'Memory cleared.';
+}
+
+
+// ---------- NOTES ----------
+
+const PB_NOTES_KEY = 'phoneBrainNotes';
+
+function getNotes() {
+  try {
+    return JSON.parse(localStorage.getItem(PB_NOTES_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveNotes(notes) {
+  localStorage.setItem(PB_NOTES_KEY, JSON.stringify(notes));
+}
+
+function createNote(text) {
+  const cleanText = text
+    .replace(/^create (a )?note( that)?/i, '')
+    .replace(/^add (a )?note( that)?/i, '')
+    .replace(/^note( that)?/i, '')
+    .trim();
+
+  if (!cleanText) {
+    return 'Tell me what you want to save in the note.';
+  }
+
+  const notes = getNotes();
+
+  notes.push({
+    id: Date.now(),
+    text: cleanText,
+    created: new Date().toLocaleString()
+  });
+
+  saveNotes(notes);
+
+  return `Note saved: ${cleanText}`;
+}
+
+function showNotes() {
+  const notes = getNotes();
+
+  if (notes.length === 0) {
+    return 'You don't have any notes yet.';
+  }
+
+  return 'Your notes:\n' +
+    notes.map((note, index) =>
+      `${index + 1}. ${note.text}`
+    ).join('\n');
+}
+
+function clearNotes() {
+  localStorage.removeItem(PB_NOTES_KEY);
+  return 'All notes have been deleted.';
+}
+
+
+// ---------- CALCULATOR ----------
+
+function calculateExpression(text) {
+  let expression = text
+    .replace(/what is/gi, '')
+    .replace(/calculate/gi, '')
+    .replace(/calculate this/gi, '')
+    .replace(/=/g, '')
+    .trim();
+
+  // Only allow basic mathematical characters.
+  if (!/^[0-9+\-*/().%\s]+$/.test(expression)) {
+    return null;
+  }
+
+  try {
+    // Convert percentage into a simple decimal operation.
+    expression = expression.replace(
+      /(\d+(?:\.\d+)?)%/g,
+      '($1/100)'
+    );
+
+    // Safe basic arithmetic parser.
+    const result = Function(
+      '"use strict"; return (' + expression + ')'
+    )();
+
+    if (!Number.isFinite(result)) {
+      return null;
+    }
+
+    return `The answer is ${result}`;
+  } catch {
+    return null;
+  }
+}
+
+
+// ---------- PHASE 2A COMMAND ROUTER ----------
+
+function handlePhase2ACommand(text) {
+  const command = text.trim().toLowerCase();
+
+  // MEMORY
+  if (
+    command.startsWith('remember ') ||
+    command.startsWith('remember that ')
+  ) {
+    return rememberInfo(text);
+  }
+
+  if (
+    command.includes('what do you remember') ||
+    command === 'show memory' ||
+    command === 'show my memory'
+  ) {
+    return showMemory();
+  }
+
+  if (
+    command === 'clear memory' ||
+    command === 'forget everything'
+  ) {
+    return clearMemory();
+  }
+
+
+  // NOTES
+  if (
+    command.startsWith('create note') ||
+    command.startsWith('create a note') ||
+    command.startsWith('add note') ||
+    command.startsWith('add a note') ||
+    command.startsWith('note ')
+  ) {
+    return createNote(text);
+  }
+
+  if (
+    command === 'show notes' ||
+    command === 'show my notes' ||
+    command === 'list notes' ||
+    command === 'my notes'
+  ) {
+    return showNotes();
+  }
+
+  if (
+    command === 'clear notes' ||
+    command === 'delete all notes'
+  ) {
+    return clearNotes();
+  }
+
+
+  // CALCULATOR
+  if (
+    command.startsWith('calculate ') ||
+    command.startsWith('what is ')
+  ) {
+    const result = calculateExpression(text);
+
+    if (result) {
+      return result;
+    }
+  }
+
+  return null;
+}
+
+
+// ---------- CONNECT PHASE 2A TO ASSISTANT ----------
+
+// Keep the existing Assistant system.
+// Wrap processCommand so Phase 2A gets checked first.
+
+if (
+  typeof Assistant !== 'undefined' &&
+  typeof Assistant.processCommand === 'function'
+) {
+  const originalProcessCommand = Assistant.processCommand.bind(Assistant);
+
+  Assistant.processCommand = function(text) {
+
+    const phase2Result = handlePhase2ACommand(text);
+
+    if (phase2Result) {
+      return phase2Result;
+    }
+
+    return originalProcessCommand(text);
+  };
+      }
