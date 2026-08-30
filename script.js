@@ -10,7 +10,7 @@ let chatVisible = false;
 
 Assistant.configure({ setMode: setMode, openUrl: openSafeUrl, getStatus: getDashboardState });
 
-document.addEventListener('DOMContentLoaded', function () {
+function initializePhoneBrain() {
   initClock();
   initBattery();
   initCpuRam();
@@ -24,7 +24,13 @@ document.addEventListener('DOMContentLoaded', function () {
   addLog('System initialized');
   addLog('Neural core online');
   addLog('Browser capability scan complete');
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializePhoneBrain);
+} else {
+  initializePhoneBrain();
+}
 
 function initClock() {
   updateClock();
@@ -280,7 +286,7 @@ function initParticles() {
 }
 
 (function initBgCanvas() {
-  document.addEventListener('DOMContentLoaded', function () {
+  var startBackground = function () {
     var canvas = document.createElement('canvas');
     var ctx = canvas.getContext('2d');
     var container = document.getElementById('cyber-bg');
@@ -318,7 +324,12 @@ function initParticles() {
       requestAnimationFrame(draw);
     }
     draw();
-  });
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startBackground);
+  } else {
+    startBackground();
+  }
 })();
 
 function addLog(text) {
