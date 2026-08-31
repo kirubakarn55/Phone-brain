@@ -7,6 +7,7 @@ import { Coding } from './coding.js';
 import { Gaming } from './gaming.js';
 import { Launcher } from './launcher.js';
 import { Settings } from './settings.js';
+import { ApiClient } from './api.js';
 
 const handlers = { setMode: null, getStatus: function () { return {}; } };
 function now() { return new Date().toISOString(); }
@@ -14,6 +15,22 @@ function normalize(text) { return text.toLowerCase().replace(/[?!.,]/g, ' ').rep
 function response(message, intent, data) { return Object.assign({ handled: true, intent: intent, response: message }, data || {}); }
 function listText(items, emptyText, formatter) { return items.length ? items.map(formatter).join(' ') : emptyText; }
 function formatQuestion(question) { return question.question + ' Options: ' + question.options.map(function (option, index) { return index + 1 + ') ' + option; }).join(', ') + '.'; }
+
+
+function buildAIContext(normalized) {
+  var settings = Settings.get(); var status = handlers.getStatus() || {};
+  var context = { mode: status.mode || 'normal', userName: settings.userName || '' };
+  if (normalized.indexOf('study') !== -1 || normalized.indexOf('quiz') !== -1 || normalized.indexOf('learn') !== -1) context.studyProgress = Study.getProgress();
+  return context;
+}
+function applySafeAction(action) {
+  if (!action || typeof action !== 'object') return { applied: false };
+  if (action.type === 'open_url' && ['youtube', 'google', 'github'].indexOf(action.target) !== -1) { var opened = Launcher.openBuiltIn(action.target); return { applied: opened.opened, message: opened.message || '' }; }
+  if (action.type === 'create_note' && typeof action.content === 'string' && action.content.trim().length <= 1000) { var note = Notes.create({ title: 'AI note', content: action.content }); return { applied: note.saved, message: note.message }; }
+  if (action.type === 'set_mode' && ['normal', 'study', 'gaming'].indexOf(action.target) !== -1) { if (typeof handlers.setMode === 'function') handlers.setMode(action.target); return { applied: true }; }
+  if (action.type === 'start_focus_timer' && Number.isInteger(Number(action.minutes)) && Number(action.minutes) >= 1 && Number(action.minutes) <= 180) { Study.startFocusTimer(Number(action.minutes)); return { applied: true }; }
+  return { applied: false };
+}
 
 async function routeCommand(original, normalized) {
   var match;
@@ -41,14 +58,13 @@ async function routeCommand(original, normalized) {
   if (normalized === 'clear notes') { var clearedNotes = Notes.clear(); return response(clearedNotes.message, 'note.clear'); }
 
   if (normalized.indexOf('quiz me') !== -1 || normalized.indexOf('start a quiz') !== -1) { var quiz = Study.nextQuestion(normalized); return response(formatQuestion(quiz), 'study.quiz', { question: quiz }); }
-  match = normalized.match(/^explain (python|sql|data analytics)(.*)$/);
-  if (match) { var explanation = Study.explain(match[1] + match[2]); return response(explanation.response, 'study.explain', { offline: true }); }
+  match = normalized.match(/^explain (python|sql|data analytics)(.*)$/) || normalized.match(/^explain (.+) in (python|sql|data analytics)$/);
+  if (match) { var studyTopic = match[1] + (match[2] || ''); if (/(function|variable|indent|join|select|where|group|median|mean|clean)/.test(studyTopic)) { var explanation = Study.explain(studyTopic); return response(explanation.response, 'study.explain', { offline: true }); } return { askAI: true }; }
   if (normalized.indexOf('study progress') !== -1 || normalized === 'my progress') { var progress = Study.getProgress(); return response('Study progress: ' + progress.completed + ' explanations completed, ' + progress.quizzes + ' quiz attempts, and ' + progress.focusMinutes + ' focus minutes.', 'study.progress', { progress: progress }); }
   match = normalized.match(/^focus timer(?: for)? (\d+) minutes?$/);
   if (match) { Study.startFocusTimer(Number(match[1])); return response('Focus timer started for ' + match[1] + ' minutes.', 'study.timer'); }
 
-  if (normalized.indexOf('explain code') === 0) return response('Open Coding Mode and paste the code you want reviewed. Phone Brain will inspect it without executing it.', 'coding.explain');
-  if (normalized.indexOf('find likely errors') === 0 || normalized.indexOf('debug code') === 0) return response('Open Coding Mode and paste code for a static heuristic review. No code will be executed.', 'coding.review');
+  if (normalized.indexOf('explain code') === 0 || normalized.indexOf('find likely errors') === 0 || normalized.indexOf('debug code') === 0 || normalized.indexOf('why does this code') === 0) return { askAI: true };
   if (normalized.indexOf('python concept') !== -1 || normalized.indexOf('sql concept') !== -1) { var concept = Study.explain(normalized); return response(concept.response, 'coding.concept', { offline: true }); }
 
   match = normalized.match(/^gaming timer(?: for)? (\d+) minutes?$/);
@@ -75,7 +91,7 @@ async function routeCommand(original, normalized) {
   if (normalized === 'status' || normalized === 'system status' || normalized.indexOf('system status') !== -1) { var status = handlers.getStatus() || {}; return response('System status: Battery ' + (status.battery === null || typeof status.battery === 'undefined' ? 'Unavailable in this browser' : Math.round(status.battery) + '%') + ', CPU Unavailable in this browser, RAM Unavailable in this browser, mode ' + (status.mode || 'normal') + '.', 'status', { status: status }); }
   if (normalized === 'hello' || normalized === 'hi' || normalized === 'hey') return response('Hello. Phone Brain is ready.', 'greeting');
   if (normalized === 'help' || normalized === 'what can you do') return response('Try memories, notes, study explanations, quizzes, focus timers, Coding Mode, gaming timers, open YouTube, search Google, or settings commands.', 'help');
-  return response('I do not recognize that command yet. Try saying help for supported commands.', 'unknown', { original: original });
+  return { askAI: true };
 }
 
 const Assistant = {
@@ -85,7 +101,20 @@ const Assistant = {
     if (!original) return response('Please enter a command.', 'empty');
     Storage.appendHistory({ role: 'user', content: original, timestamp: now() });
     var output;
-    try { output = await routeCommand(original, normalize(original)); } catch (error) { output = response('I could not complete that command. Please try again.', 'error'); }
+    try {
+      output = await routeCommand(original, normalize(original));
+      if (output && output.askAI) {
+        var ai = await ApiClient.requestAssistant({ message: original, context: buildAIContext(normalize(original)) });
+        if (ai.ok) {
+          var applied = (ai.actions || []).map(applySafeAction).filter(function (item) { return item.applied; });
+          output = response(ai.answer, 'ai.response', { aiAvailable: true, actions: applied });
+        } else {
+          output = response(ai.message || 'AI is currently unavailable. Local Phone Brain features are still working.', 'ai.unavailable', { aiAvailable: false, reason: ai.kind });
+        }
+      }
+    } catch (error) {
+      output = response('I could not complete that command. Local Phone Brain features are still working.', 'error', { aiAvailable: false });
+    }
     Storage.appendHistory({ role: 'assistant', content: output.response, timestamp: now(), intent: output.intent });
     return output;
   }

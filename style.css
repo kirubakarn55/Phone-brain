@@ -730,3 +730,10 @@ body {
 .settings-grid .check-label input { width: auto; margin: 0; flex: none; }
 .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 @media (max-width: 420px) { .module-tabs { display: grid; grid-template-columns: repeat(2, 1fr); } .module-tab { width: 100%; } .module-row input, .module-row button, .module-row select { flex: 1 1 100%; } .settings-grid { grid-template-columns: 1fr; } .module-list-item { align-items: flex-start; flex-wrap: wrap; } }
+
+
+/* ===== PHASE 3 AI STATUS ===== */
+.assistant-state { margin: 7px 0 10px; color: rgba(255, 255, 255, 0.45); font-size: 9px; letter-spacing: 1.5px; }
+.assistant-state.thinking { color: var(--neon-yellow, #ffe600); animation: pulse 1s ease-in-out infinite; }
+.assistant-state.ai { color: var(--neon-cyan); text-shadow: var(--glow-cyan); }
+.assistant-state.unavailable { color: #ff6680; }

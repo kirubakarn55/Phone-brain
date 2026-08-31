@@ -200,13 +200,25 @@ function initAssistant() {
   });
 }
 
+function setAssistantState(state, message) {
+  var element = document.getElementById('assistant-state');
+  if (!element) return;
+  element.className = 'assistant-state ' + state;
+  element.textContent = message;
+}
+
 async function runAssistantCommand(text) {
-  var response = await Assistant.processCommand(text);
+  setAssistantState('thinking', 'PROCESSING REQUEST…');
+  var response;
+  try { response = await Assistant.processCommand(text); } catch (error) { response = { response: 'Local Phone Brain features are still working, but this request could not be completed.', aiAvailable: false }; }
   renderConversation();
   if (response && response.response) {
     var settings = Storage.loadSettings();
     if (settings.voiceEnabled) Speech.speak(response.response, settings.speechRate);
   }
+  if (response && response.aiAvailable === false) setAssistantState('unavailable', 'AI UNAVAILABLE · LOCAL FEATURES READY');
+  else if (response && response.intent === 'ai.response') setAssistantState('ai', 'AI RESPONSE RECEIVED');
+  else setAssistantState('ready', 'LOCAL READY · AI BACKEND OPTIONAL');
   return response;
 }
 
@@ -235,7 +247,7 @@ function initAiOrb() {
     document.getElementById('ai-chat').classList.toggle('visible', chatVisible);
     if (chatVisible) {
       renderConversation();
-      if (Storage.loadHistory().length === 0) addAiMessage('Phone Brain AI online. How can I assist you?', 'ai');
+      if (Storage.loadHistory().length === 0) addAiMessage('Phone Brain local assistant ready. AI replies require a configured backend.', 'ai');
     }
   });
 }
