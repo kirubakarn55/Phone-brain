@@ -2,13 +2,20 @@ import { Assistant } from './assistant.js';
 import { Storage } from './storage.js';
 import { Speech } from './speech.js';
 import { Device } from './device.js';
+import { Memory } from './memory.js';
+import { Notes } from './notes.js';
+import { Study } from './study.js';
+import { Coding } from './coding.js';
+import { Gaming } from './gaming.js';
+import { Launcher } from './launcher.js';
+import { Settings } from './settings.js';
 
 let batteryLevel = null;
 let currentMode = 'normal';
 let voiceActive = false;
 let chatVisible = false;
 
-Assistant.configure({ setMode: setMode, openUrl: openSafeUrl, getStatus: getDashboardState });
+Assistant.configure({ setMode: setMode, getStatus: getDashboardState });
 
 function initializePhoneBrain() {
   initClock();
@@ -17,6 +24,7 @@ function initializePhoneBrain() {
   initModes();
   initVoice();
   initAssistant();
+  initPhase2UI();
   initAiOrb();
   initParticles();
   initNetworkStatus();
@@ -354,6 +362,42 @@ function showToast(message) {
   toast.classList.add('show');
   setTimeout(function () { toast.classList.remove('show'); }, 2500);
 }
+
+
+function initPhase2UI() {
+  Settings.apply();
+  initModuleTabs();
+  initMemoryUI();
+  initNotesUI();
+  initStudyUI();
+  initCodingUI();
+  initGamingUI();
+  initLauncherUI();
+  initSettingsUI();
+}
+function initModuleTabs() {
+  document.querySelectorAll('.module-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var name = tab.getAttribute('data-module');
+      document.querySelectorAll('.module-tab').forEach(function (item) { item.classList.toggle('active', item === tab); });
+      document.querySelectorAll('.module-panel').forEach(function (panel) { panel.classList.toggle('active', panel.getAttribute('data-panel') === name); });
+    });
+  });
+}
+function renderMemories() { var list = document.getElementById('memories-list'); list.textContent = ''; Memory.list().forEach(function (memory) { var item = document.createElement('div'); item.className = 'module-list-item'; item.textContent = memory.text; list.appendChild(item); }); }
+function initMemoryUI() { renderMemories(); document.getElementById('save-memory-btn').addEventListener('click', function () { var input = document.getElementById('memory-input'); var result = Memory.add(input.value); showToast(result.message); if (result.saved) { input.value = ''; renderMemories(); } }); document.getElementById('clear-memory-btn').addEventListener('click', function () { Memory.clear(); renderMemories(); showToast('Memory cleared'); }); }
+let editingNoteId = null;
+function renderNotes() { var list = document.getElementById('notes-list'); var query = document.getElementById('note-search').value; list.textContent = ''; Notes.list(query).forEach(function (note) { var item = document.createElement('div'); item.className = 'module-list-item note-item'; var text = document.createElement('div'); var title = document.createElement('strong'); title.textContent = note.title; text.appendChild(title); text.appendChild(document.createTextNode(' — ' + note.content)); var edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Edit'; edit.addEventListener('click', function () { editingNoteId = note.id; document.getElementById('note-title').value = note.title; document.getElementById('note-content').value = note.content; }); var remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete'; remove.addEventListener('click', function () { Notes.remove(note.id); renderNotes(); showToast('Note deleted'); }); item.appendChild(text); item.appendChild(edit); item.appendChild(remove); list.appendChild(item); }); }
+function initNotesUI() { renderNotes(); document.getElementById('note-search').addEventListener('input', renderNotes); document.getElementById('save-note-btn').addEventListener('click', function () { var data = { title: document.getElementById('note-title').value, content: document.getElementById('note-content').value }; var result = editingNoteId ? Notes.update(editingNoteId, data) : Notes.create(data); showToast(result.message); if (result.saved) { editingNoteId = null; document.getElementById('note-title').value = ''; document.getElementById('note-content').value = ''; renderNotes(); } }); }
+function renderStudyProgress() { var progress = Study.getProgress(); document.getElementById('study-progress').textContent = progress.completed + ' explanations · ' + progress.quizzes + ' quiz attempts · ' + progress.focusMinutes + ' focus minutes'; }
+function formatTimer(seconds) { return String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0'); }
+function initStudyUI() { renderStudyProgress(); document.getElementById('study-ask-btn').addEventListener('click', function () { var topic = document.getElementById('study-question').value || document.getElementById('study-topic').value; document.getElementById('study-output').textContent = Study.explain(topic).response; renderStudyProgress(); }); document.getElementById('study-quiz-btn').addEventListener('click', function () { var question = Study.nextQuestion(document.getElementById('study-topic').value); document.getElementById('study-quiz-question').textContent = question.question + ' ' + question.options.map(function (option, index) { return index + 1 + ') ' + option; }).join('  '); }); document.getElementById('study-quiz-submit').addEventListener('click', function () { document.getElementById('study-output').textContent = Study.answerQuestion(Number(document.getElementById('study-quiz-answer').value) - 1).message; renderStudyProgress(); }); document.getElementById('study-timer-start').addEventListener('click', function () { Study.startFocusTimer(25, { onTick: function (seconds) { document.getElementById('study-timer-display').textContent = formatTimer(seconds); }, onComplete: function () { showToast('Focus timer complete'); renderStudyProgress(); } }); }); document.getElementById('study-timer-stop').addEventListener('click', function () { Study.stopFocusTimer(); document.getElementById('study-timer-display').textContent = '25:00'; }); }
+function initCodingUI() { var getCode = function () { return { language: document.getElementById('coding-language').value, code: document.getElementById('coding-input').value }; }; var output = document.getElementById('coding-output'); document.getElementById('coding-example-btn').addEventListener('click', function () { var data = getCode(); document.getElementById('coding-input').value = Coding.example(data.language); }); document.getElementById('coding-explain-btn').addEventListener('click', function () { var data = getCode(); output.textContent = Coding.explain(data.language, data.code); }); document.getElementById('coding-errors-btn').addEventListener('click', function () { var data = getCode(); output.textContent = Coding.findLikelyErrors(data.language, data.code).join(' '); }); document.getElementById('coding-fix-btn').addEventListener('click', function () { var data = getCode(); output.textContent = Coding.suggestFixes(data.language, data.code); }); }
+function renderGamingFavorites() { var list = document.getElementById('gaming-favorites-list'); list.textContent = ''; Gaming.listFavorites().forEach(function (favorite) { var item = document.createElement('div'); item.className = 'module-list-item'; var link = document.createElement('button'); link.type = 'button'; link.textContent = favorite.name; link.addEventListener('click', function () { var result = Launcher.openUrl(favorite.url); if (!result.opened) showToast(result.message); }); var remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete'; remove.addEventListener('click', function () { Gaming.removeFavorite(favorite.id); renderGamingFavorites(); }); item.appendChild(link); item.appendChild(remove); list.appendChild(item); }); }
+function initGamingUI() { renderGamingFavorites(); document.getElementById('gaming-favorite-add').addEventListener('click', function () { var result = Gaming.addFavorite(document.getElementById('gaming-favorite-name').value, document.getElementById('gaming-favorite-url').value); showToast(result.message); if (result.saved) { document.getElementById('gaming-favorite-name').value = ''; document.getElementById('gaming-favorite-url').value = ''; renderGamingFavorites(); } }); document.getElementById('gaming-note-save').addEventListener('click', function () { var result = Gaming.addNote(document.getElementById('gaming-note-input').value); showToast(result.message); if (result.saved) document.getElementById('gaming-note-input').value = ''; }); document.getElementById('gaming-timer-start').addEventListener('click', function () { Gaming.startTimer(Number(document.getElementById('gaming-timer-minutes').value), { onTick: function (seconds) { document.getElementById('gaming-timer-display').textContent = formatTimer(seconds); }, onComplete: function () { showToast('Gaming timer complete'); } }); }); document.getElementById('gaming-timer-stop').addEventListener('click', function () { Gaming.stopTimer(); document.getElementById('gaming-timer-display').textContent = '60:00'; }); }
+function renderLauncher() { var list = document.getElementById('launcher-list'); list.textContent = ''; Launcher.listShortcuts().forEach(function (shortcut) { var item = document.createElement('div'); item.className = 'module-list-item'; var open = document.createElement('button'); open.type = 'button'; open.textContent = shortcut.name; open.addEventListener('click', function () { var result = Launcher.openUrl(shortcut.url); if (!result.opened) showToast(result.message); }); var remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Delete'; remove.addEventListener('click', function () { Launcher.removeShortcut(shortcut.id); renderLauncher(); }); item.appendChild(open); item.appendChild(remove); list.appendChild(item); }); }
+function initLauncherUI() { document.querySelectorAll('[data-launch]').forEach(function (button) { button.addEventListener('click', function () { var result = Launcher.openBuiltIn(button.getAttribute('data-launch')); if (!result.opened) showToast(result.message); }); }); document.getElementById('launcher-google-search').addEventListener('click', function () { var result = Launcher.searchGoogle(document.getElementById('launcher-query').value); if (!result.opened) showToast(result.message); }); document.getElementById('launcher-youtube-search').addEventListener('click', function () { var result = Launcher.searchYouTube(document.getElementById('launcher-query').value); if (!result.opened) showToast(result.message); }); document.getElementById('launcher-add').addEventListener('click', function () { var result = Launcher.addShortcut(document.getElementById('launcher-name').value, document.getElementById('launcher-url').value); showToast(result.message); if (result.saved) { document.getElementById('launcher-name').value = ''; document.getElementById('launcher-url').value = ''; renderLauncher(); } }); renderLauncher(); }
+function initSettingsUI() { var settings = Settings.get(); document.getElementById('setting-assistant-name').value = settings.assistantName; document.getElementById('setting-user-name').value = settings.userName; document.getElementById('setting-speech-rate').value = settings.speechRate; document.getElementById('setting-voice-enabled').checked = settings.voiceEnabled; document.getElementById('setting-reduced-motion').checked = settings.reducedAnimations; document.getElementById('save-settings-btn').addEventListener('click', function () { Settings.save({ assistantName: document.getElementById('setting-assistant-name').value, userName: document.getElementById('setting-user-name').value, speechRate: document.getElementById('setting-speech-rate').value, voiceEnabled: document.getElementById('setting-voice-enabled').checked, reducedAnimations: document.getElementById('setting-reduced-motion').checked }); showToast('Settings saved'); }); document.getElementById('settings-clear-history').addEventListener('click', function () { Settings.clearHistory(); renderConversation(); showToast('History cleared'); }); document.getElementById('settings-clear-memory').addEventListener('click', function () { Settings.clearMemory(); renderMemories(); showToast('Memory cleared'); }); document.getElementById('settings-clear-notes').addEventListener('click', function () { Settings.clearNotes(); renderNotes(); showToast('Notes cleared'); }); }
 
 function initPWA() {
   if (!('serviceWorker' in navigator)) {

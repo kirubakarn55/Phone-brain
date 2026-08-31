@@ -1,137 +1,93 @@
 import { Storage } from './storage.js';
 import { Device } from './device.js';
+import { Memory } from './memory.js';
+import { Notes } from './notes.js';
+import { Study } from './study.js';
+import { Coding } from './coding.js';
+import { Gaming } from './gaming.js';
+import { Launcher } from './launcher.js';
+import { Settings } from './settings.js';
 
-const handlers = {
-  setMode: null,
-  openUrl: null,
-  getStatus: function () { return {}; }
-};
-
-function now() {
-  return new Date().toISOString();
-}
-
-function normalize(text) {
-  return text.toLowerCase().replace(/[?!.,]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function result(response, intent, data) {
-  return Object.assign({ handled: true, intent: intent, response: response }, data || {});
-}
-
-function openAllowedUrl(url) {
-  if (typeof handlers.openUrl === 'function') {
-    return handlers.openUrl(url);
-  }
-  return false;
-}
+const handlers = { setMode: null, getStatus: function () { return {}; } };
+function now() { return new Date().toISOString(); }
+function normalize(text) { return text.toLowerCase().replace(/[?!.,]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function response(message, intent, data) { return Object.assign({ handled: true, intent: intent, response: message }, data || {}); }
+function listText(items, emptyText, formatter) { return items.length ? items.map(formatter).join(' ') : emptyText; }
+function formatQuestion(question) { return question.question + ' Options: ' + question.options.map(function (option, index) { return index + 1 + ') ' + option; }).join(', ') + '.'; }
 
 async function routeCommand(original, normalized) {
   var match;
-
   match = normalized.match(/^search (?:google|the web) for (.+)$/);
-  if (match) {
-    var googleUrl = 'https://www.google.com/search?q=' + encodeURIComponent(match[1]);
-    openAllowedUrl(googleUrl);
-    return result('Opening Google search for ' + match[1] + '.', 'search.google', { url: googleUrl });
-  }
-
-  match = normalized.match(/^search youtube for (.+)$/);
-  if (match) {
-    var youtubeSearchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(match[1]);
-    openAllowedUrl(youtubeSearchUrl);
-    return result('Opening YouTube search for ' + match[1] + '.', 'search.youtube', { url: youtubeSearchUrl });
-  }
-
-  match = normalized.match(/^youtube search(?: for)? (.+)$/);
-  if (match) {
-    var youtubeUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(match[1]);
-    openAllowedUrl(youtubeUrl);
-    return result('Opening YouTube search for ' + match[1] + '.', 'search.youtube', { url: youtubeUrl });
-  }
-
+  if (match) { var google = Launcher.searchGoogle(match[1]); return response(google.opened ? 'Opening Google search for ' + match[1] + '.' : google.message, 'search.google', { url: google.url }); }
+  match = normalized.match(/^search youtube for (.+)$/) || normalized.match(/^youtube search(?: for)? (.+)$/);
+  if (match) { var youtube = Launcher.searchYouTube(match[1]); return response(youtube.opened ? 'Opening YouTube search for ' + match[1] + '.' : youtube.message, 'search.youtube', { url: youtube.url }); }
   match = normalized.match(/^open (youtube|google|github)(?: website)?$/);
-  if (match) {
-    var sites = { youtube: 'https://www.youtube.com/', google: 'https://www.google.com/', github: 'https://github.com/' };
-    var siteUrl = sites[match[1]];
-    openAllowedUrl(siteUrl);
-    return result('Opening ' + match[1] + '.', 'open.' + match[1], { url: siteUrl });
-  }
+  if (match) { var site = Launcher.openBuiltIn(match[1]); return response(site.opened ? 'Opening ' + match[1] + '.' : site.message, 'open.' + match[1], { url: site.url }); }
 
-  if (normalized === 'what time is it' || normalized === 'what is the time' || normalized === 'time' || normalized === 'clock' || normalized.indexOf('what time') !== -1) {
-    return result('The current time is ' + new Date().toLocaleTimeString() + '.', 'time');
-  }
+  if (normalized.indexOf('what do you remember') !== -1 || normalized === 'show my memories' || normalized === 'show memories') { var memories = Memory.list(); return response(listText(memories, 'I have no saved memories.', function (item) { return item.text + '.'; }), 'memory.list', { memories: memories }); }
+  match = original.match(/^remember(?: that)? (.+)$/i);
+  if (match) { var savedMemory = Memory.add(match[1]); return response(savedMemory.message, 'memory.add', { memory: savedMemory.memory, saved: savedMemory.saved }); }
+  if (normalized === 'clear memory' || normalized === 'clear memories') { var clearedMemory = Memory.clear(); return response(clearedMemory.message, 'memory.clear'); }
+  match = original.match(/^forget (.+)$/i);
+  if (match) { var forgotten = Memory.forget(match[1]); return response(forgotten.message, 'memory.forget', { removed: forgotten.removed }); }
 
-  if (normalized.indexOf('battery') !== -1 || normalized.indexOf('power level') !== -1) {
-    var battery = await Device.getBatteryStatus();
-    if (!battery.supported) return result('Battery status: Unavailable in this browser.', 'battery', { supported: false });
-    var chargingText = battery.charging ? ' It is charging.' : '';
-    return result('Battery is at ' + Math.round(battery.level) + '%.' + chargingText, 'battery', { supported: true, level: battery.level });
-  }
+  match = original.match(/^(?:create (?:a )?note|save this as a note|take a note)[: ]+(.+)$/i);
+  if (match) { var createdNote = Notes.create({ title: 'Quick note', content: match[1] }); return response(createdNote.message, 'note.create', { note: createdNote.note, saved: createdNote.saved }); }
+  if (normalized === 'show my notes' || normalized === 'list my notes') { var notes = Notes.list(); return response(listText(notes, 'You have no saved notes.', function (note) { return note.title + ': ' + note.content + '.'; }), 'note.list', { notes: notes }); }
+  match = original.match(/^search my notes for (.+)$/i);
+  if (match) { var foundNotes = Notes.list(match[1]); return response(listText(foundNotes, 'No matching notes found.', function (note) { return note.title + ': ' + note.content + '.'; }), 'note.search', { notes: foundNotes }); }
+  match = original.match(/^delete my note (.+)$/i);
+  if (match) { var deletedNote = Notes.removeByQuery(match[1]); return response(deletedNote.message, 'note.delete', { removed: deletedNote.removed }); }
+  if (normalized === 'clear notes') { var clearedNotes = Notes.clear(); return response(clearedNotes.message, 'note.clear'); }
 
-  if (normalized.indexOf('cpu') !== -1 || normalized.indexOf('processor') !== -1 || normalized.indexOf('ram') !== -1 || normalized.indexOf('memory usage') !== -1) {
-    return result('CPU and RAM usage: Unavailable in this browser. The browser does not expose reliable system usage metrics.', 'system-metrics', { supported: false });
-  }
+  if (normalized.indexOf('quiz me') !== -1 || normalized.indexOf('start a quiz') !== -1) { var quiz = Study.nextQuestion(normalized); return response(formatQuestion(quiz), 'study.quiz', { question: quiz }); }
+  match = normalized.match(/^explain (python|sql|data analytics)(.*)$/);
+  if (match) { var explanation = Study.explain(match[1] + match[2]); return response(explanation.response, 'study.explain', { offline: true }); }
+  if (normalized.indexOf('study progress') !== -1 || normalized === 'my progress') { var progress = Study.getProgress(); return response('Study progress: ' + progress.completed + ' explanations completed, ' + progress.quizzes + ' quiz attempts, and ' + progress.focusMinutes + ' focus minutes.', 'study.progress', { progress: progress }); }
+  match = normalized.match(/^focus timer(?: for)? (\d+) minutes?$/);
+  if (match) { Study.startFocusTimer(Number(match[1])); return response('Focus timer started for ' + match[1] + ' minutes.', 'study.timer'); }
 
-  if (normalized.indexOf('gaming') !== -1 || normalized === 'game mode' || normalized === 'game') {
-    if (typeof handlers.setMode === 'function') handlers.setMode('gaming');
-    return result('Gaming mode selected. Phone Brain will only use supported browser features.', 'mode.gaming');
-  }
+  if (normalized.indexOf('explain code') === 0) return response('Open Coding Mode and paste the code you want reviewed. Phone Brain will inspect it without executing it.', 'coding.explain');
+  if (normalized.indexOf('find likely errors') === 0 || normalized.indexOf('debug code') === 0) return response('Open Coding Mode and paste code for a static heuristic review. No code will be executed.', 'coding.review');
+  if (normalized.indexOf('python concept') !== -1 || normalized.indexOf('sql concept') !== -1) { var concept = Study.explain(normalized); return response(concept.response, 'coding.concept', { offline: true }); }
 
-  if (normalized.indexOf('study') !== -1 || normalized.indexOf('focus mode') !== -1 || normalized === 'focus') {
-    if (typeof handlers.setMode === 'function') handlers.setMode('study');
-    return result('Study mode selected.', 'mode.study');
-  }
+  match = normalized.match(/^gaming timer(?: for)? (\d+) minutes?$/);
+  if (match) { Gaming.startTimer(Number(match[1])); return response('Gaming timer started for ' + match[1] + ' minutes. No CPU or GPU boost was performed.', 'gaming.timer'); }
+  match = original.match(/^gaming note (.+)$/i);
+  if (match) { var gamingNote = Gaming.addNote(match[1]); return response(gamingNote.message, 'gaming.note'); }
 
-  if (normalized === 'normal mode' || normalized === 'normal' || normalized === 'reset mode' || normalized === 'reset') {
-    if (typeof handlers.setMode === 'function') handlers.setMode('normal');
-    return result('Normal mode restored.', 'mode.normal');
-  }
+  if (normalized === 'voice on' || normalized === 'enable voice') { Settings.save({ voiceEnabled: true }); return response('Assistant voice responses enabled.', 'settings.voice'); }
+  if (normalized === 'voice off' || normalized === 'disable voice') { Settings.save({ voiceEnabled: false }); return response('Assistant voice responses disabled.', 'settings.voice'); }
+  match = normalized.match(/^set speech rate to ([0-9.]+)$/);
+  if (match) { Settings.save({ speechRate: Number(match[1]) }); return response('Speech rate saved.', 'settings.speech-rate'); }
+  match = original.match(/^set assistant name to (.+)$/i);
+  if (match) { Settings.save({ assistantName: match[1] }); return response('Assistant name saved.', 'settings.assistant-name'); }
+  match = original.match(/^set user name to (.+)$/i);
+  if (match) { Settings.save({ userName: match[1] }); return response('User name saved.', 'settings.user-name'); }
+  if (normalized === 'clear history') { Storage.clearHistory(); return response('Conversation history cleared.', 'history.clear'); }
 
-  if (normalized === 'status' || normalized === 'system status' || normalized.indexOf('system status') !== -1) {
-    var status = handlers.getStatus() || {};
-    var batteryText = status.battery === null || typeof status.battery === 'undefined' ? 'Unavailable in this browser' : Math.round(status.battery) + '%';
-    return result('System status: Battery ' + batteryText + ', CPU Unavailable in this browser, RAM Unavailable in this browser, mode ' + (status.mode || 'normal') + '.', 'status', { status: status });
-  }
-
-  match = normalized.match(/^remember (.+)$/);
-  if (match) {
-    var memory = Storage.addMemory(match[1]);
-    return result('I saved that memory locally on this device.', 'memory.add', { memory: memory });
-  }
-
-  if (normalized === 'clear memory' || normalized === 'forget all memories') {
-    Storage.clearMemory();
-    return result('Local memory cleared.', 'memory.clear');
-  }
-
-  if (normalized === 'hello' || normalized === 'hi' || normalized === 'hey') {
-    return result('Hello. Phone Brain is ready.', 'greeting');
-  }
-
-  if (normalized === 'help' || normalized === 'what can you do') {
-    return result('Try time, battery, start gaming mode, start study mode, normal mode, open YouTube, search Google for Python, or search YouTube for SQL tutorial.', 'help');
-  }
-
-  return result('I do not recognize that command yet. Try saying help for supported commands.', 'unknown', { original: original });
+  if (normalized === 'what time is it' || normalized === 'what is the time' || normalized === 'time' || normalized === 'clock' || normalized.indexOf('what time') !== -1) return response('The current time is ' + new Date().toLocaleTimeString() + '.', 'time');
+  if (normalized.indexOf('battery') !== -1 || normalized.indexOf('power level') !== -1) { var battery = await Device.getBatteryStatus(); return battery.supported ? response('Battery is at ' + Math.round(battery.level) + '%' + (battery.charging ? '. It is charging.' : '.'), 'battery', { level: battery.level }) : response('Battery status: Unavailable in this browser.', 'battery', { supported: false }); }
+  if (normalized.indexOf('cpu') !== -1 || normalized.indexOf('processor') !== -1 || normalized.indexOf('ram') !== -1 || normalized.indexOf('memory usage') !== -1) return response('CPU and RAM usage: Unavailable in this browser. Reliable system usage metrics are not exposed to normal web pages.', 'system-metrics', { supported: false });
+  if (normalized.indexOf('gaming') !== -1 || normalized === 'game mode' || normalized === 'game') { if (typeof handlers.setMode === 'function') handlers.setMode('gaming'); return response('Gaming mode selected. No CPU or GPU boost was performed.', 'mode.gaming'); }
+  if (normalized.indexOf('study') !== -1 || normalized.indexOf('focus mode') !== -1 || normalized === 'focus') { if (typeof handlers.setMode === 'function') handlers.setMode('study'); return response('Study mode selected.', 'mode.study'); }
+  if (normalized === 'normal mode' || normalized === 'normal' || normalized === 'reset mode' || normalized === 'reset') { if (typeof handlers.setMode === 'function') handlers.setMode('normal'); return response('Normal mode restored.', 'mode.normal'); }
+  if (normalized === 'status' || normalized === 'system status' || normalized.indexOf('system status') !== -1) { var status = handlers.getStatus() || {}; return response('System status: Battery ' + (status.battery === null || typeof status.battery === 'undefined' ? 'Unavailable in this browser' : Math.round(status.battery) + '%') + ', CPU Unavailable in this browser, RAM Unavailable in this browser, mode ' + (status.mode || 'normal') + '.', 'status', { status: status }); }
+  if (normalized === 'hello' || normalized === 'hi' || normalized === 'hey') return response('Hello. Phone Brain is ready.', 'greeting');
+  if (normalized === 'help' || normalized === 'what can you do') return response('Try memories, notes, study explanations, quizzes, focus timers, Coding Mode, gaming timers, open YouTube, search Google, or settings commands.', 'help');
+  return response('I do not recognize that command yet. Try saying help for supported commands.', 'unknown', { original: original });
 }
 
 const Assistant = {
   configure: function (options) { Object.assign(handlers, options || {}); },
   processCommand: async function (text) {
     var original = String(text || '').trim();
-    if (!original) return result('Please enter a command.', 'empty');
-    var normalized = normalize(original);
+    if (!original) return response('Please enter a command.', 'empty');
     Storage.appendHistory({ role: 'user', content: original, timestamp: now() });
-    var response;
-    try {
-      response = await routeCommand(original, normalized);
-    } catch (error) {
-      response = result('I could not complete that command. Please try again.', 'error');
-    }
-    Storage.appendHistory({ role: 'assistant', content: response.response, timestamp: now(), intent: response.intent });
-    return response;
+    var output;
+    try { output = await routeCommand(original, normalize(original)); } catch (error) { output = response('I could not complete that command. Please try again.', 'error'); }
+    Storage.appendHistory({ role: 'assistant', content: output.response, timestamp: now(), intent: output.intent });
+    return output;
   }
 };
-
 export { Assistant };

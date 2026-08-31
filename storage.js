@@ -1,9 +1,9 @@
 const VERSION = 'v1';
 const PREFIX = 'phone-brain:' + VERSION + ':';
-const SLOT_KEYS = Object.freeze({ settings: PREFIX + 'settings', memories: PREFIX + 'memories', notes: PREFIX + 'notes', history: PREFIX + 'history', studyProgress: PREFIX + 'study-progress' });
+const SLOT_KEYS = Object.freeze({ settings: PREFIX + 'settings', memories: PREFIX + 'memories', notes: PREFIX + 'notes', history: PREFIX + 'history', studyProgress: PREFIX + 'study-progress', gaming: PREFIX + 'gaming', launcher: PREFIX + 'launcher' });
 const DEFAULTS = Object.freeze({
   settings: { voiceEnabled: false, speechRate: 1, assistantName: 'Phone Brain', userName: '', reducedAnimations: false },
-  memories: [], notes: [], history: [], studyProgress: { completed: 0, quizzes: 0, focusMinutes: 0 }
+  memories: [], notes: [], history: [], studyProgress: { completed: 0, quizzes: 0, focusMinutes: 0 }, gaming: { favorites: [] }, launcher: []
 });
 
 function fallbackFor(name) {

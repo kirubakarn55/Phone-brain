@@ -1,0 +1,20 @@
+import { Storage } from './storage.js';
+const QUESTION_BANK = [
+  { topic: 'python', question: 'Which keyword defines a function in Python?', options: ['func', 'def', 'function', 'define'], answer: 1 },
+  { topic: 'sql', question: 'Which SQL clause filters rows before grouping?', options: ['ORDER BY', 'HAVING', 'WHERE', 'LIMIT'], answer: 2 },
+  { topic: 'analytics', question: 'What does the median represent?', options: ['The middle value when ordered', 'The largest value', 'The total sum', 'The number of rows'], answer: 0 }
+];
+let activeQuestion = null; let timer = null; let timerEndsAt = 0;
+function subjectFor(text) { var value = String(text || '').toLowerCase(); if (value.indexOf('sql') !== -1 || value.indexOf('database') !== -1 || value.indexOf('query') !== -1) return 'sql'; if (value.indexOf('data') !== -1 || value.indexOf('analytics') !== -1 || value.indexOf('median') !== -1 || value.indexOf('mean') !== -1) return 'analytics'; return 'python'; }
+function explanation(topic) { var subject = subjectFor(topic); if (subject === 'python') return 'Python explanation: variables hold values, functions group reusable logic, and indentation defines code blocks. Start with small functions and test each input and output.'; if (subject === 'sql') return 'SQL explanation: SELECT chooses columns, FROM chooses a table, WHERE filters rows, GROUP BY forms groups, and ORDER BY sorts the result. Use parameters rather than joining untrusted input into queries.'; return 'Data analytics explanation: define the question, inspect and clean the data, summarize it with appropriate measures, visualize patterns, and validate conclusions against the source data. A mean is sensitive to outliers; a median is often more robust.'; }
+function progress() { return Storage.loadStudyProgress(); }
+const Study = {
+  explain: function (topic) { var value = explanation(topic); var current = progress(); Storage.saveStudyProgress(Object.assign({}, current, { completed: Number(current.completed || 0) + 1 })); return { offline: true, topic: subjectFor(topic), response: value }; },
+  nextQuestion: function (topic) { var subject = subjectFor(topic); activeQuestion = QUESTION_BANK.find(function (question) { return question.topic === subject; }) || QUESTION_BANK[0]; return { topic: activeQuestion.topic, question: activeQuestion.question, options: activeQuestion.options, answerIndex: activeQuestion.answer }; },
+  answerQuestion: function (answer) { if (!activeQuestion) return { correct: false, message: 'Start a quiz question first.' }; var index = Number(answer); var correct = index === activeQuestion.answer || String(answer).trim().toLowerCase() === activeQuestion.options[activeQuestion.answer].toLowerCase(); var current = progress(); Storage.saveStudyProgress(Object.assign({}, current, { quizzes: Number(current.quizzes || 0) + 1, completed: Number(current.completed || 0) + (correct ? 1 : 0) })); return { correct: correct, message: correct ? 'Correct.' : 'Not quite. The answer is ' + activeQuestion.options[activeQuestion.answer] + '.' }; },
+  getProgress: progress,
+  startFocusTimer: function (minutes, callbacks) { callbacks = callbacks || {}; Study.stopFocusTimer(); var duration = Math.max(1, Math.min(180, Number(minutes) || 25)) * 60; timerEndsAt = Date.now() + duration * 1000; var tick = function () { var remaining = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000)); if (typeof callbacks.onTick === 'function') callbacks.onTick(remaining); if (remaining <= 0) { Study.stopFocusTimer(); var current = progress(); Storage.saveStudyProgress(Object.assign({}, current, { focusMinutes: Number(current.focusMinutes || 0) + Math.round(duration / 60) })); if (typeof callbacks.onComplete === 'function') callbacks.onComplete(); } }; timer = setInterval(tick, 1000); tick(); return { started: true, seconds: duration }; },
+  stopFocusTimer: function () { if (timer) clearInterval(timer); timer = null; timerEndsAt = 0; },
+  isFocusTimerRunning: function () { return Boolean(timer); }
+};
+export { Study };
